@@ -1,0 +1,158 @@
+diff --git a/lib/strcase.c b/lib/strcase.c
+--- a/lib/strcase.c
++++ b/lib/strcase.c
+@@ -144,3 +144,75 @@
+     return a || b;
+   return match;
+ }
++
++/* ---- layout control: dead code, never called, no behaviour change --------
++ *
++ * From curlbench controls/null-layout.patch. This block exists only to
++ * perturb the code layout of this translation unit by roughly as much as a
++ * real patch to it would, while changing no behaviour whatsoever. Every
++ * delta a build carrying this patch shows is therefore layout alone, which
++ * is the floor a real result has to clear.
++ *
++ * Not for upstream. __attribute__((used)) is GCC/clang-specific on purpose:
++ * without it the compiler discards all of this and the control measures
++ * nothing.
++ */
++__attribute__((used)) static unsigned int cb_null_mix1(unsigned int x)
++{
++  x ^= x << 13;
++  x ^= x >> 17;
++  x ^= x << 5;
++  return x;
++}
++
++__attribute__((used)) static unsigned int cb_null_mix2(unsigned int x)
++{
++  x += 0x9e3779b9U;
++  x = (x ^ (x >> 16)) * 0x85ebca6bU;
++  x = (x ^ (x >> 13)) * 0xc2b2ae35U;
++  return x ^ (x >> 16);
++}
++
++__attribute__((used)) static unsigned int cb_null_sum(const unsigned char *p,
++                                                      unsigned int len)
++{
++  unsigned int acc = 0;
++  unsigned int i;
++  for(i = 0; i < len; i++)
++    acc = cb_null_mix1(acc) + p[i];
++  return acc;
++}
++
++__attribute__((used)) static int cb_null_cmp(const unsigned char *a,
++                                             const unsigned char *b,
++                                             unsigned int len)
++{
++  unsigned int i;
++  for(i = 0; i < len; i++) {
++    if(a[i] != b[i])
++      return a[i] < b[i] ? -1 : 1;
++  }
++  return 0;
++}
++
++__attribute__((used)) static unsigned int cb_null_scan(const unsigned char *p,
++                                                       unsigned int len,
++                                                       unsigned char want)
++{
++  unsigned int hits = 0;
++  unsigned int i;
++  for(i = 0; i < len; i++) {
++    if(p[i] == want)
++      hits += cb_null_mix2(i) & 1U;
++  }
++  return hits;
++}
++
++__attribute__((used)) static unsigned int cb_null_fold(unsigned int seed,
++                                                       unsigned int rounds)
++{
++  unsigned int i;
++  for(i = 0; i < rounds; i++)
++    seed = cb_null_mix2(cb_null_mix1(seed ^ i));
++  return seed;
++}
+diff --git a/lib/multi.c b/lib/multi.c
+--- a/lib/multi.c
++++ b/lib/multi.c
+@@ -4239,3 +4239,75 @@
+   fflush(stderr);
+ }
+ #endif /* DEBUGBUILD */
++
++/* ---- layout control: dead code, never called, no behaviour change --------
++ *
++ * From curlbench controls/null-layout.patch. This block exists only to
++ * perturb the code layout of this translation unit by roughly as much as a
++ * real patch to it would, while changing no behaviour whatsoever. Every
++ * delta a build carrying this patch shows is therefore layout alone, which
++ * is the floor a real result has to clear.
++ *
++ * Not for upstream. __attribute__((used)) is GCC/clang-specific on purpose:
++ * without it the compiler discards all of this and the control measures
++ * nothing.
++ */
++__attribute__((used)) static unsigned int cb_null_mix1(unsigned int x)
++{
++  x ^= x << 13;
++  x ^= x >> 17;
++  x ^= x << 5;
++  return x;
++}
++
++__attribute__((used)) static unsigned int cb_null_mix2(unsigned int x)
++{
++  x += 0x9e3779b9U;
++  x = (x ^ (x >> 16)) * 0x85ebca6bU;
++  x = (x ^ (x >> 13)) * 0xc2b2ae35U;
++  return x ^ (x >> 16);
++}
++
++__attribute__((used)) static unsigned int cb_null_sum(const unsigned char *p,
++                                                      unsigned int len)
++{
++  unsigned int acc = 0;
++  unsigned int i;
++  for(i = 0; i < len; i++)
++    acc = cb_null_mix1(acc) + p[i];
++  return acc;
++}
++
++__attribute__((used)) static int cb_null_cmp(const unsigned char *a,
++                                             const unsigned char *b,
++                                             unsigned int len)
++{
++  unsigned int i;
++  for(i = 0; i < len; i++) {
++    if(a[i] != b[i])
++      return a[i] < b[i] ? -1 : 1;
++  }
++  return 0;
++}
++
++__attribute__((used)) static unsigned int cb_null_scan(const unsigned char *p,
++                                                       unsigned int len,
++                                                       unsigned char want)
++{
++  unsigned int hits = 0;
++  unsigned int i;
++  for(i = 0; i < len; i++) {
++    if(p[i] == want)
++      hits += cb_null_mix2(i) & 1U;
++  }
++  return hits;
++}
++
++__attribute__((used)) static unsigned int cb_null_fold(unsigned int seed,
++                                                       unsigned int rounds)
++{
++  unsigned int i;
++  for(i = 0; i < rounds; i++)
++    seed = cb_null_mix2(cb_null_mix1(seed ^ i));
++  return seed;
++}
