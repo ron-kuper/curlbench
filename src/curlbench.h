@@ -1,8 +1,9 @@
 /* curlbench -- a libcurl microbenchmark harness.
  *
- * Public-API only: every case here drives libcurl through <curl/curl.h>, so
- * the harness links against an ordinary static libcurl and needs no private
- * headers, no build-tree layout and no patches of its own.
+ * Public-API only: every case here drives libcurl through its installed
+ * headers, <curl/curl.h> and <curl/mprintf.h>, so the harness links against an
+ * ordinary static libcurl and needs no private headers, no build-tree layout
+ * and no patches of its own.
  *
  * SPDX-License-Identifier: curl
  */
@@ -30,6 +31,7 @@ struct bench {
 
 /* Case tables, each terminated by a zeroed entry. */
 extern const struct bench cb_cases_str[];
+extern const struct bench cb_cases_printf[];
 extern const struct bench cb_cases_multi[];
 
 /* Deterministic 32-bit xorshift, so every architecture runs byte-identical

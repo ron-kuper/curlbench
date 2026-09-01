@@ -31,7 +31,8 @@ ifeq ($(STATIC),1)
 LDFLAGS += -static
 endif
 
-SRCS := src/curlbench.c src/bench_str.c src/bench_multi.c
+SRCS := src/curlbench.c src/bench_str.c src/bench_printf.c \
+        src/bench_multi.c
 OBJS := $(patsubst src/%.c,$(O)/%.o,$(SRCS))
 BIN  := $(O)/curlbench
 

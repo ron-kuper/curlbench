@@ -268,7 +268,7 @@ static void print_json(const struct result *rs, size_t n, const char *label)
 static const struct bench *const *all_tables(void)
 {
   static const struct bench *tables[] = {
-    cb_cases_str, cb_cases_multi, NULL
+    cb_cases_str, cb_cases_printf, cb_cases_multi, NULL
   };
   return tables;
 }

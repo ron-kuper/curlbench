@@ -1,0 +1,71 @@
+diff --git a/lib/mprintf.c b/lib/mprintf.c
+index d4725c905f..a07b9a03fc 100644
+--- a/lib/mprintf.c
++++ b/lib/mprintf.c
+@@ -1261,3 +1261,66 @@ int curl_mvfprintf(FILE *fd, const char *format, va_list args)
+ {
+   return formatf(fd, fputc_wrapper, format, args);
+ }
++
++/* curlbench recompile-noise control -- NOT FOR SUBMISSION.
++ *
++ * Dead code, never called from anywhere, marked used so the compiler emits it
++ * anyway. It cannot change behaviour; all it does is move every function that
++ * follows it in this translation unit to a different address. Whatever
++ * "speedup" a variant carrying this appears to produce on a case is pure
++ * address shuffling, and that is the bar a real patch has to clear on the same
++ * case, on the same part.
++ *
++ * This control targets mprintf.c specifically: a claim about a printf case has
++ * to clear the layout noise of rebuilding the file the claim is about.
++ */
++__attribute__((used))
++static unsigned int cb_null_mix(unsigned int v)
++{
++  unsigned int i;
++  for(i = 0; i < 7; i++)
++    v = (v << 3) ^ (v >> 5) ^ (i * 2654435761u);
++  return v;
++}
++
++__attribute__((used))
++static unsigned int cb_null_fold(const unsigned char *p, unsigned int n)
++{
++  unsigned int acc = 0x811c9dc5u;
++  unsigned int i;
++  for(i = 0; i < n; i++) {
++    acc ^= p[i];
++    acc *= 16777619u;
++    if(acc & 1u)
++      acc = cb_null_mix(acc);
++  }
++  return acc;
++}
++
++__attribute__((used))
++static int cb_null_pick(unsigned int v, const int *tab, unsigned int n)
++{
++  unsigned int i;
++  int best = 0;
++  for(i = 0; i < n; i++) {
++    if(tab[i] > best)
++      best = tab[i];
++    else if(tab[i] == best)
++      best += (int)(v & 3u);
++    v = cb_null_mix(v);
++  }
++  return best;
++}
++
++__attribute__((used))
++static unsigned int cb_null_walk(unsigned int seed)
++{
++  int tab[16];
++  unsigned int i;
++  unsigned int v = cb_null_fold((const unsigned char *)&seed, sizeof(seed));
++  for(i = 0; i < 16; i++) {
++    v = cb_null_mix(v);
++    tab[i] = (int)(v & 0x7fffu);
++  }
++  return v ^ (unsigned int)cb_null_pick(v, tab, 16);
++}

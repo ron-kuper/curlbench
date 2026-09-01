@@ -15,9 +15,9 @@ measurement trustworthy (`--verify`, run before any timing).
 
 ## Design constraints
 
-**Public API only.** Every case drives libcurl through its installed header,
-`curl/curl.h`. No private headers, no build-tree layout, no compiling the bench
-inside the curl tree. This keeps the harness working across curl versions and
+**Public API only.** Every case drives libcurl through its installed headers,
+`curl/curl.h` and `curl/mprintf.h`. No private headers, no build-tree layout, no
+compiling the bench inside the curl tree. This keeps the harness working across curl versions and
 makes it something a maintainer can run without adopting anything.
 
 **Self-contained binaries.** libcurl is linked statically and, by default, so
@@ -37,7 +37,7 @@ between two binaries is the patch under test.
     scripts/run.sh             interleaved A/B/A/B runs, with a verify gate
     scripts/compare.py         robust A/B comparison of the JSON output
     scripts/summarize.py       many variants at once, against the noise controls
-    controls/                  the dead-code patch that measures recompile noise
+    controls/                  dead-code patches that measure recompile noise
     targets/                   per-architecture compiler and tune profiles
 
 ## Quick start (native)
@@ -280,6 +280,44 @@ recompile noise, which is what makes them worth quoting at all. The desktop pair
 also reproduced across two runs. This one rests as much on the mechanism — a
 4 KB row table zeroed per `curl_multi_init()` when the table already grows
 geometrically on demand — as on the measurement.
+
+`mprintf: emit output in blocks rather than byte-by-byte` (staging output and
+emitting literal runs, `%s` bodies, digit runs and padding as runs):
+
+| case | Cortex-A55 | e300c3 | x86-64 |
+|---|---|---|---|
+| `printf/request_line` | −67% | −68% | −73.0% |
+| `printf/header_pair` | −77% | −71% | −79.5% |
+| `printf/soap_body` | −78% | −77% | −83.5% |
+| `printf/snprintf_soap` | not yet | not yet | −59.2% |
+| `printf/snprintf_header` | not yet | not yet | −51.4% |
+| `printf/snprintf_upstream` | not yet | not yet | −24.6% |
+| `printf/snprintf_small` | not yet | not yet | −18.6% |
+| recompile noise, these cases | — | — | up to 5.4% |
+
+The first three cases drive `curl_maprintf()`, the rest `curl_msnprintf()` into a
+caller-supplied buffer. The device columns for the `snprintf` cases are honestly
+blank: those cases are new and have only been run on the desktop so far, which is
+the column this README tells you to trust least. Read them as "the effect is not
+small on this shape", not as a figure to quote.
+
+Two things in that table are worth more than the percentages. The `msnprintf`
+cases show the change is not merely about the growable-buffer sink: a
+caller-supplied buffer, which pays almost nothing per byte, still moves 51% and
+59% when the format is mostly literal text and `%s`. And `printf/snprintf_upstream`
+is the format from curl's own `tests/perf/snprintf.c`, copied verbatim so a number
+from that test and a number from here are the same measurement — eight conversions
+with only 4-9 bytes of literal between them, which is the least favourable shape
+here for anything that batches output, and the reason it is the smallest entry in
+the column.
+
+`printf/snprintf_header` and `printf/snprintf_soap` are deliberate pairs with
+`printf/header_pair` and `printf/soap_body`: same format, same arguments, same
+bytes out, different sink. A pair's difference is therefore the output path and
+nothing else, which is what lets the two claims above be made separately.
+`controls/null-mprintf.patch` is the control for all of this — dead code in
+`lib/mprintf.c`, because layout noise has to come from rebuilding the file the
+change is in, and `null-layout.patch` shifts different files.
 
 Two cautions that came out of these runs rather than out of theory:
 
