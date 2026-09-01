@@ -286,38 +286,64 @@ emitting literal runs, `%s` bodies, digit runs and padding as runs):
 
 | case | Cortex-A55 | e300c3 | x86-64 |
 |---|---|---|---|
-| `printf/request_line` | −67% | −68% | −73.0% |
-| `printf/header_pair` | −77% | −71% | −79.5% |
-| `printf/soap_body` | −78% | −77% | −83.5% |
-| `printf/snprintf_soap` | not yet | not yet | −59.2% |
-| `printf/snprintf_header` | not yet | not yet | −51.4% |
-| `printf/snprintf_upstream` | not yet | not yet | −24.6% |
-| `printf/snprintf_small` | not yet | not yet | −18.6% |
-| recompile noise, these cases | — | — | up to 5.4% |
+| `printf/soap_body` | −79.0% | −75.5% | −83.5% |
+| `printf/header_pair` | −76.1% | −65.5% | −79.5% |
+| `printf/request_line` | −66.6% | −59.7% | −73.0% |
+| `printf/numbers` | −57.2% | −44.3% | −64.3% |
+| `printf/complex` | −48.0% | −33.9% | −57.0% |
+| `printf/snprintf_soap` | −45.0% | −35.2% | −59.2% |
+| `printf/snprintf_header` | −41.5% | −33.7% | −51.4% |
+| `printf/snprintf_upstream` | −10.6% | **+1.2%** | −24.6% |
+| `printf/snprintf_small` | −8.5% | **+2.3%** | −18.6% |
+| repeat noise, these cases | 0.40% | 0.31% | 1.1% |
+| recompile noise, these cases | 0.84% | 0.24%* | 5.4% |
 
-The first three cases drive `curl_maprintf()`, the rest `curl_msnprintf()` into a
-caller-supplied buffer. The device columns for the `snprintf` cases are honestly
-blank: those cases are new and have only been run on the desktop so far, which is
-the column this README tells you to trust least. Read them as "the effect is not
-small on this shape", not as a figure to quote.
+The first five cases drive `curl_maprintf()`, the rest `curl_msnprintf()` into a
+caller-supplied buffer. *The e300c3 recompile figure is the per-case one for the
+four `snprintf` rows; on `numbers`, `complex` and `request_line` the same control
+reaches 6.5% there, so read those three against a much looser bar. Rebuilding
+every variant from scratch and repeating the whole run reproduced each figure to
+within 0.4 points.
 
-Two things in that table are worth more than the percentages. The `msnprintf`
-cases show the change is not merely about the growable-buffer sink: a
-caller-supplied buffer, which pays almost nothing per byte, still moves 51% and
-59% when the format is mostly literal text and `%s`. And `printf/snprintf_upstream`
-is the format from curl's own `tests/perf/snprintf.c`, copied verbatim so a number
-from that test and a number from here are the same measurement — eight conversions
-with only 4-9 bytes of literal between them, which is the least favourable shape
-here for anything that batches output, and the reason it is the smallest entry in
-the column.
+**The two positive numbers are a real regression, not noise.** Of five interleaved
+passes with the first discarded, every patched pass is slower than every baseline
+pass — for `printf/snprintf_small`, 7441/7444/7439/7459 ns against
+7270/7288/7303/7262 — and `controls/null-mprintf.patch` reads −0.24% on that same
+case, which rules out code layout. On the slowest part, short conversion-heavy
+`msnprintf` formats lose slightly.
 
-`printf/snprintf_header` and `printf/snprintf_soap` are deliberate pairs with
-`printf/header_pair` and `printf/soap_body`: same format, same arguments, same
-bytes out, different sink. A pair's difference is therefore the output path and
-nothing else, which is what lets the two claims above be made separately.
-`controls/null-mprintf.patch` is the control for all of this — dead code in
-`lib/mprintf.c`, because layout noise has to come from rebuilding the file the
-change is in, and `null-layout.patch` shifts different files.
+The cause is that a run callback ends in a `memcpy`, and these two cases have runs
+of only a handful of bytes: one separator, four digits, a short host name. Where
+`memcpy` is an out-of-line call with size and alignment dispatch, that call costs
+more than moving the bytes, so staging gives back a little of what it saves.
+
+That diagnosis was tested rather than assumed, and the obvious cure was rejected on
+the measurement. Copying runs shorter than 16 bytes with an inline loop and keeping
+`memcpy` above that does fix the e300c3: `printf/snprintf_upstream` goes from a
+regression to −0.04%, and every other case there improves, up to −8.2% on
+`printf/request_line`. On x86-64 the same change costs **+23.0% on
+`printf/soap_body` and +29.5% on `printf/snprintf_soap`**, and on the A55 +1.7% and
++2.7%. The threshold does not protect those two because their runs genuinely are
+2 to 21 bytes, and there `memcpy` wins at any size. One constant cannot serve all
+three parts, so the regression is documented rather than traded away.
+
+Three things in this table are worth more than the percentages:
+
+- **It is not only the growable-buffer sink.** A caller-supplied buffer pays almost
+  nothing per byte, and `printf/snprintf_header` and `printf/snprintf_soap` still
+  move 33-45% on the devices. What sets the size of the win is the shape of the
+  format, not which sink receives the bytes.
+- **`printf/snprintf_upstream` is curl's own `tests/perf/snprintf.c` format**,
+  copied verbatim so a number from that test and a number from here are the same
+  measurement. Eight conversions with 4-9 bytes of literal between them is the
+  least favourable shape here for anything that batches output, and it ranges from
+  −24.6% to +1.2% across three parts while the long-run cases stay within 8 points
+  of each other. A single-platform figure for that case says very little, which is
+  most of the reason to have it.
+- **The pairs are what license the first claim.** `printf/snprintf_header` and
+  `printf/snprintf_soap` hold the format, the arguments and the output bytes
+  identical to `printf/header_pair` and `printf/soap_body` and vary only the sink,
+  so a pair's difference is the output path and nothing else.
 
 Two cautions that came out of these runs rather than out of theory:
 
